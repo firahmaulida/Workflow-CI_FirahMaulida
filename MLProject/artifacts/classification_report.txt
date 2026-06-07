@@ -1,0 +1,33 @@
+============================================================
+  CLASSIFICATION REPORT — Telco Customer Churn
+  Author    : FirahMaulida
+  Timestamp : 2026-06-04 19:24:49
+============================================================
+
+HYPERPARAMETERS:
+  n_estimators          : 100
+  max_depth             : 10
+  min_samples_split     : 2
+  test_size             : 0.2
+  random_state          : 42
+  algorithm             : RandomForestClassifier
+  class_weight          : balanced
+
+METRICS:
+  accuracy              : 0.7693
+  f1_weighted           : 0.7777
+  f1_macro              : 0.7279
+  precision_weighted    : 0.7956
+  recall_weighted       : 0.7693
+  roc_auc               : 0.8387
+
+DETAILED REPORT:
+              precision    recall  f1-score   support
+
+    No Churn       0.88      0.79      0.83      1035
+       Churn       0.55      0.71      0.62       374
+
+    accuracy                           0.77      1409
+   macro avg       0.72      0.75      0.73      1409
+weighted avg       0.80      0.77      0.78      1409
+

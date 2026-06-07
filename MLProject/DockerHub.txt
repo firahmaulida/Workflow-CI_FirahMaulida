@@ -1,0 +1,27 @@
+Docker Hub Repository:
+https://hub.docker.com/r/firahmaulida/telco-churn-mlflow
+
+Image Tags:
+  firahmaulida/telco-churn-mlflow:latest
+  firahmaulida/telco-churn-mlflow:run-<run_id_8_chars>
+
+Author  : FirahMaulida
+Project : Membangun Sistem Machine Learning - Dicoding
+
+---
+Cara menjalankan model dari Docker Image:
+
+  # Pull image terbaru
+  docker pull firahmaulida/telco-churn-mlflow:latest
+
+  # Jalankan serving (port 5001 → container 8080)
+  docker run -p 5001:8080 firahmaulida/telco-churn-mlflow:latest
+
+  # Test endpoint prediksi
+  curl -X POST http://localhost:5001/invocations \
+    -H "Content-Type: application/json" \
+    -d '{"inputs": [[0,0,1,0,12.5,-0.3,0.2,1,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,0,1,0,0,1,0,0]]}'
+
+---
+Image dibangun secara otomatis oleh GitHub Actions menggunakan:
+  mlflow models build-docker --model-uri runs:/<run_id>/model --name firahmaulida/telco-churn-mlflow

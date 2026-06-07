@@ -1,0 +1,297 @@
+name: CI — MLflow Project Training & Docker Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      n_estimators:
+        description: 'Jumlah pohon Random Forest'
+        required: false
+        default: '100'
+        type: string
+      max_depth:
+        description: 'Kedalaman maksimum pohon (0 = None)'
+        required: false
+        default: '10'
+        type: string
+      min_samples_split:
+        description: 'Minimum sampel untuk split node'
+        required: false
+        default: '2'
+        type: string
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PERHATIAN — GitHub Secrets yang WAJIB dikonfigurasi sebelum workflow jalan:
+#
+#   DAGSHUB_TOKEN   → Personal Access Token dari DagsHub
+#                     (Settings > Access Tokens > Generate Token)
+#
+#   DOCKERHUB_USERNAME → Username Docker Hub Anda (misal: firahmaulida)
+#   DOCKERHUB_TOKEN    → Access Token Docker Hub
+#                        (Docker Hub > Account Settings > Security > New Token)
+#
+# Cara tambah Secrets:
+#   GitHub Repo → Settings → Secrets and variables → Actions → New repository secret
+# ─────────────────────────────────────────────────────────────────────────────
+
+env:
+  PYTHON_VERSION   : "3.12.7"
+  DOCKER_IMAGE_NAME: "firahmaulida/telco-churn-mlflow"
+  MLFLOW_VERSION   : "2.19.0"
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 1: Training via MLflow Project
+  # ═══════════════════════════════════════════════════════════════════════════
+  train:
+    name: "🚀 MLflow Project Training"
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: MLProject
+
+    outputs:
+      run_id: ${{ steps.mlflow_run.outputs.run_id }}
+
+    steps:
+      # ── 1. Checkout ─────────────────────────────────────────────────────────
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Python ─────────────────────────────────────────────────────
+      - name: "🐍 Setup Python ${{ env.PYTHON_VERSION }}"
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      # ── 3. Install Miniconda (diperlukan oleh MLflow Project conda_env) ────
+      - name: "📦 Setup Miniconda"
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda : true
+          python-version    : ${{ env.PYTHON_VERSION }}
+          activate-environment: telco-churn-firahmaulida
+
+      # ── 4. Install MLflow di base environment ───────────────────────────────
+      - name: "⚙️ Install MLflow & dependencies"
+        shell: bash -l {0}
+        run: |
+          pip install --upgrade pip
+          pip install mlflow==${{ env.MLFLOW_VERSION }} dagshub
+
+      # ── 5. Set DagsHub Environment Variables ────────────────────────────────
+      - name: "🔑 Set DagsHub Credentials"
+        run: |
+          echo "MLFLOW_TRACKING_USERNAME=firahmaulida"        >> $GITHUB_ENV
+          echo "MLFLOW_TRACKING_PASSWORD=${{ secrets.DAGSHUB_TOKEN }}" >> $GITHUB_ENV
+          echo "MLFLOW_TRACKING_URI=https://dagshub.com/firahmaulida/Eksperimen_SML_FirahMaulida.mlflow" >> $GITHUB_ENV
+
+      # ── 6. Verifikasi dataset tersedia ──────────────────────────────────────
+      - name: "📊 Verify Dataset"
+        run: |
+          echo "Memeriksa dataset..."
+          ls -lh telco_churn_preprocessed.csv
+          python -c "
+          import pandas as pd
+          df = pd.read_csv('telco_churn_preprocessed.csv')
+          print(f'  Shape  : {df.shape}')
+          print(f'  Target : Churn — {df[\"Churn\"].value_counts().to_dict()}')
+          "
+
+      # ── 7. Jalankan MLflow Project ──────────────────────────────────────────
+      - name: "🧠 Run MLflow Project"
+        id: mlflow_run
+        shell: bash -l {0}
+        run: |
+          echo "Menjalankan MLflow Project dengan parameter:"
+          echo "  n_estimators     = ${{ github.event.inputs.n_estimators || '100' }}"
+          echo "  max_depth        = ${{ github.event.inputs.max_depth || '10' }}"
+          echo "  min_samples_split= ${{ github.event.inputs.min_samples_split || '2' }}"
+
+          mlflow run . \
+            --experiment-name "Telco_Churn_CI_FirahMaulida" \
+            -P n_estimators=${{ github.event.inputs.n_estimators || '100' }} \
+            -P max_depth=${{ github.event.inputs.max_depth || '10' }} \
+            -P min_samples_split=${{ github.event.inputs.min_samples_split || '2' }} \
+            --env-manager conda \
+            2>&1 | tee mlflow_run.log
+
+          echo "MLflow Project selesai dijalankan!"
+
+      # ── 8. Upload Artifacts (model + plots + reports) ───────────────────────
+      - name: "📤 Upload Training Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-artifacts-${{ github.run_number }}
+          path: |
+            MLProject/artifacts/
+            MLProject/mlflow_run.log
+          retention-days: 30
+
+      # ── 9. Upload MLflow Run Log ─────────────────────────────────────────────
+      - name: "📋 Upload MLflow Log"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlflow-log-${{ github.run_number }}
+          path: MLProject/mlflow_run.log
+          retention-days: 14
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 2: Build & Push Docker Image (Advanced Requirement)
+  # ═══════════════════════════════════════════════════════════════════════════
+  docker:
+    name: "🐳 Build & Push Docker Image"
+    runs-on: ubuntu-latest
+    needs: train
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      # ── 1. Checkout ─────────────────────────────────────────────────────────
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Python ─────────────────────────────────────────────────────
+      - name: "🐍 Setup Python ${{ env.PYTHON_VERSION }}"
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      # ── 3. Install MLflow ────────────────────────────────────────────────────
+      - name: "⚙️ Install MLflow"
+        run: |
+          pip install mlflow==${{ env.MLFLOW_VERSION }} dagshub scikit-learn pandas
+
+      # ── 4. Setup Docker Buildx ───────────────────────────────────────────────
+      - name: "🔧 Setup Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+
+      # ── 5. Login ke Docker Hub ───────────────────────────────────────────────
+      - name: "🔐 Login to Docker Hub"
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ── 6. Set DagsHub Credentials ───────────────────────────────────────────
+      - name: "🔑 Set DagsHub Credentials"
+        run: |
+          echo "MLFLOW_TRACKING_USERNAME=firahmaulida"        >> $GITHUB_ENV
+          echo "MLFLOW_TRACKING_PASSWORD=${{ secrets.DAGSHUB_TOKEN }}" >> $GITHUB_ENV
+          echo "MLFLOW_TRACKING_URI=https://dagshub.com/firahmaulida/Eksperimen_SML_FirahMaulida.mlflow" >> $GITHUB_ENV
+
+      # ── 7. Ambil Run ID terbaru dari DagsHub MLflow ──────────────────────────
+      - name: "🔍 Fetch Latest MLflow Run ID"
+        id: fetch_run
+        run: |
+          python - <<'EOF'
+          import mlflow
+          import os
+
+          mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+          client = mlflow.tracking.MlflowClient()
+
+          # Ambil experiment
+          exp = client.get_experiment_by_name("Telco_Churn_CI_FirahMaulida")
+          if exp is None:
+              print("Experiment belum ada, skip Docker build.")
+              print("RUN_ID=none", file=open(os.environ["GITHUB_OUTPUT"], "a"))
+          else:
+              runs = client.search_runs(
+                  experiment_ids=[exp.experiment_id],
+                  order_by=["start_time DESC"],
+                  max_results=1,
+              )
+              if runs:
+                  run_id = runs[0].info.run_id
+                  print(f"Run ID terbaru: {run_id}")
+                  with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                      print(f"RUN_ID={run_id}", file=f)
+              else:
+                  print("Tidak ada run ditemukan.")
+                  with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                      print("RUN_ID=none", file=f)
+          EOF
+
+      # ── 8. Build Docker Image dengan mlflow models build-docker ──────────────
+      - name: "🏗️ Build Docker Image (mlflow models build-docker)"
+        if: steps.fetch_run.outputs.RUN_ID != 'none'
+        run: |
+          RUN_ID="${{ steps.fetch_run.outputs.RUN_ID }}"
+          MODEL_URI="runs:/${RUN_ID}/model"
+          IMAGE_TAG="${{ env.DOCKER_IMAGE_NAME }}:run-${RUN_ID::8}"
+          IMAGE_LATEST="${{ env.DOCKER_IMAGE_NAME }}:latest"
+
+          echo "Model URI   : $MODEL_URI"
+          echo "Docker Image: $IMAGE_TAG"
+
+          # Build image menggunakan MLflow built-in command
+          mlflow models build-docker \
+            --model-uri "$MODEL_URI" \
+            --name "$IMAGE_TAG" \
+            --enable-mlserver
+
+          # Tag sebagai latest
+          docker tag "$IMAGE_TAG" "$IMAGE_LATEST"
+
+          echo "DOCKER_IMAGE_TAG=$IMAGE_TAG"   >> $GITHUB_ENV
+          echo "DOCKER_IMAGE_LATEST=$IMAGE_LATEST" >> $GITHUB_ENV
+
+      # ── 9. Push ke Docker Hub ────────────────────────────────────────────────
+      - name: "📤 Push Docker Image to Docker Hub"
+        if: steps.fetch_run.outputs.RUN_ID != 'none'
+        run: |
+          docker push "${{ env.DOCKER_IMAGE_TAG }}"
+          docker push "${{ env.DOCKER_IMAGE_LATEST }}"
+
+          echo ""
+          echo "✅ Docker Image berhasil dipush!"
+          echo "   Tag    : ${{ env.DOCKER_IMAGE_TAG }}"
+          echo "   Latest : ${{ env.DOCKER_IMAGE_LATEST }}"
+          echo ""
+          echo "Cara menjalankan model dari Docker:"
+          echo "  docker pull ${{ env.DOCKER_IMAGE_LATEST }}"
+          echo "  docker run -p 5001:8080 ${{ env.DOCKER_IMAGE_LATEST }}"
+
+      # ── 10. Upload Docker Build Summary ─────────────────────────────────────
+      - name: "📋 Create Docker Build Summary"
+        if: always()
+        run: |
+          cat > docker_summary.txt << EOF
+          ============================================================
+            DOCKER BUILD SUMMARY — FirahMaulida
+            Timestamp  : $(date -u "+%Y-%m-%d %H:%M:%S UTC")
+            GitHub Run : ${{ github.run_number }}
+            Commit     : ${{ github.sha }}
+          ============================================================
+
+          Image Tags:
+            - ${{ env.DOCKER_IMAGE_NAME }}:run-${{ steps.fetch_run.outputs.RUN_ID }}
+            - ${{ env.DOCKER_IMAGE_NAME }}:latest
+
+          Docker Hub : https://hub.docker.com/r/firahmaulida/telco-churn-mlflow
+          DagsHub    : https://dagshub.com/firahmaulida/Eksperimen_SML_FirahMaulida.mlflow
+
+          Cara pakai:
+            docker pull ${{ env.DOCKER_IMAGE_NAME }}:latest
+            docker run -p 5001:8080 ${{ env.DOCKER_IMAGE_NAME }}:latest
+          ============================================================
+          EOF
+          cat docker_summary.txt
+
+      - name: "📤 Upload Docker Summary"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-build-summary-${{ github.run_number }}
+          path: docker_summary.txt
+          retention-days: 14
