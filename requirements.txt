@@ -3,3 +3,4 @@ dagshub
 pandas
 scikit-learn
 matplotlib
+seaborn
