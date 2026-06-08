@@ -6,37 +6,42 @@ on:
 
 env:
   PYTHON_VERSION: "3.12.7"
-  DOCKER_IMAGE_NAME: "firahmaulida/telco-churn-mlflow"
+  # Sesuaikan dengan nama repo DagsHub kamu
+  REPO_NAME: "Eksperimen_SML_FirahMaulida" 
 
 jobs:
   train:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: "🐍 Setup Python"
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install Dependencies
+      - name: "⚙️ Install Dependencies"
         run: |
+          python -m pip install --upgrade pip
           pip install mlflow==2.19.0 dagshub pandas scikit-learn matplotlib seaborn
 
-      - name: Set DagsHub Secrets
+      - name: "🔑 Set DagsHub Credentials"
         run: |
+          # Mengatur kredensial agar MLflow bisa langsung menembak ke DagsHub tanpa login manual
           echo "MLFLOW_TRACKING_USERNAME=firahmaulida" >> $GITHUB_ENV
           echo "MLFLOW_TRACKING_PASSWORD=${{ secrets.DAGSHUB_TOKEN }}" >> $GITHUB_ENV
-          echo "MLFLOW_TRACKING_URI=https://dagshub.com/firahmaulida/Eksperimen_SML_FirahMaulida.mlflow" >> $GITHUB_ENV
+          echo "MLFLOW_TRACKING_URI=https://dagshub.com/firahmaulida/${{ env.REPO_NAME }}.mlflow" >> $GITHUB_ENV
 
-      - name: Run MLflow Project
+      - name: "🧠 Run MLflow Project"
         run: |
-          # Perintah paling stabil: jalankan MLflow project
+          # Menjalankan project di dalam folder MLProject
+          # Kita gunakan --env-manager local agar tidak butuh install Conda di server GitHub
           mlflow run MLProject --env-manager local --experiment-name "Telco_Churn_CI_FirahMaulida"
 
-      - name: Upload Results
+      - name: "📤 Upload Artifacts"
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: model-results
-          path: MLProject/
+          name: model-results-firah
+          path: MLProject/artifacts/
