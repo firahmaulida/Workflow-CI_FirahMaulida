@@ -32,12 +32,10 @@ jobs:
           DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
           MLFLOW_TRACKING_USERNAME: "firahmaulida"
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
-          MLFLOW_TRACKING_URI: "https://dagshub.com/firahmaulida/Eksperimen_SML_FirahMaulida.mlflow"
         run: |
-          # Kita gunakan python langsung untuk menjalankan modelling.py 
-          # tapi tetap dalam konteks folder MLProject agar kriteria terpenuhi
-          cd MLProject
-          python modelling.py --n_estimators 100 --max_depth 10
+          mlflow run MLProject \
+            --env-manager local \
+            --experiment-name "Telco_Churn_CI_FirahMaulida"
 
       - name: "📤 Upload Artifacts"
         if: always()
