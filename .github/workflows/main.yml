@@ -1,16 +1,11 @@
-name: Workflow CI FirahMaulida Bintang 5 Final
+name: Workflow CI FirahMaulida Final Debug
 
 on:
   push:
     branches: [ main ]
 
-env:
-  PYTHON_VERSION: "3.12.7"
-  MLFLOW_VERSION: "2.19.0"
-
 jobs:
   train:
-    name: "🚀 MLflow Project Training"
     runs-on: ubuntu-latest
     steps:
       - name: "📥 Checkout Repository"
@@ -19,32 +14,28 @@ jobs:
       - name: "🐍 Setup Python"
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: '3.12.7'
 
       - name: "⚙️ Install Dependencies"
         run: |
           python -m pip install --upgrade pip
-          # Kita instal semua library yang dibutuhkan modelling.py di sini
-          pip install mlflow==${{ env.MLFLOW_VERSION }} dagshub pandas scikit-learn matplotlib seaborn
+          pip install mlflow==2.19.0 dagshub pandas scikit-learn matplotlib seaborn
 
-      - name: "🔑 Set DagsHub Credentials"
-        run: |
-          # Ini supaya MLflow bisa kirim data ke DagsHub tanpa tanya login
-          echo "MLFLOW_TRACKING_USERNAME=firahmaulida" >> $GITHUB_ENV
-          echo "MLFLOW_TRACKING_PASSWORD=${{ secrets.DAGSHUB_TOKEN }}" >> $GITHUB_ENV
-          echo "MLFLOW_TRACKING_URI=https://dagshub.com/firahmaulida/Eksperimen_SML_FirahMaulida.mlflow" >> $GITHUB_ENV
+      - name: "🔍 Debug: List Files (Cek Path)"
+        run: ls -R
 
       - name: "🧠 Run MLflow Project"
+        env:
+          MLFLOW_TRACKING_USERNAME: "firahmaulida"
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
+          MLFLOW_TRACKING_URI: "https://dagshub.com/firahmaulida/Eksperimen_SML_FirahMaulida.mlflow"
         run: |
-          # PERBAIKAN UTAMA: Pakai --env-manager local sesuai instruksi Reviewer
-          mlflow run MLProject \
-            --env-manager local \
-            --experiment-name "Telco_Churn_CI_FirahMaulida" \
-            -P n_estimators=100
+          # Kita masuk ke folder MLProject dan jalankan dari sana
+          mlflow run MLProject --env-manager local --experiment-name "Telco_Churn_CI_FirahMaulida"
 
       - name: "📤 Upload Artifacts"
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: model-results-firah
+          name: results-firah
           path: MLProject/artifacts/
