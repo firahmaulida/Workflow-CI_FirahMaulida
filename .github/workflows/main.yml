@@ -1,8 +1,8 @@
-name: Workflow CI FirahMaulida Advanced Fix
+name: Workflow CI FirahMaulida Final Bintang 5
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
 
 env:
   PYTHON_VERSION: "3.12.7"
@@ -22,10 +22,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: "⚙️ Install Dependencies"
+      - name: "⚙️ Install All Dependencies"
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          # Kita instal SEMUA library yang dipakai di modelling.py
+          pip install mlflow==${{ env.MLFLOW_VERSION }} dagshub pandas scikit-learn matplotlib seaborn
 
       - name: "🔑 Set DagsHub Credentials"
         run: |
@@ -35,11 +36,8 @@ jobs:
 
       - name: "🧠 Run MLflow Project"
         run: |
-          # Perbaikan utama: Menggunakan --env-manager local sesuai saran reviewer
-          mlflow run MLProject \
-            --env-manager local \
-            --experiment-name "Telco_Churn_CI_FirahMaulida" \
-            -P n_estimators=100
+          # REVISI FINAL: Memastikan path benar dan menggunakan env local
+          mlflow run MLProject --env-manager local --experiment-name "Telco_Churn_CI_FirahMaulida"
 
       - name: "📤 Upload Artifacts"
         if: always()
@@ -60,9 +58,9 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
+      
       - name: "🏗️ Build & Push Docker"
         run: |
-          # Ini hanya simulasi build sederhana agar lolos kriteria Advanced
-          docker build -t ${{ env.DOCKER_IMAGE_NAME }}:latest .
+          # Kita pakai build manual agar lebih ringan di GitHub Actions
+          docker build -t ${{ env.DOCKER_IMAGE_NAME }}:latest ./MLProject
           docker push ${{ env.DOCKER_IMAGE_NAME }}:latest
