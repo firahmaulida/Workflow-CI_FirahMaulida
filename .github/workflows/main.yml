@@ -1,8 +1,8 @@
-name: Workflow CI FirahMaulida Advanced Bintang 5
+name: Workflow CI FirahMaulida Final Bintang 5
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
 
 env:
   PYTHON_VERSION: "3.12.7"
@@ -21,20 +21,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          # cache: pip dihapus untuk menghindari error path requirements.txt
 
       - name: "⚙️ Install Dependencies"
         run: |
-          pip install --upgrade pip
-          # Menginstall library dari root folder
+          python -m pip install --upgrade pip
           pip install mlflow==${{ env.MLFLOW_VERSION }} dagshub pandas scikit-learn matplotlib seaborn
 
       - name: "🧠 Run MLflow Project"
         env:
-          # Memberikan kunci rahasia ke script modelling.py
+          # INI KUNCINYA: Mengirimkan token ke kodingan Python
           DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          # REVISI: Menggunakan --env-manager local sesuai instruksi reviewer
           mlflow run MLProject \
             --env-manager local \
             --experiment-name "Telco_Churn_CI_FirahMaulida"
@@ -45,22 +42,3 @@ jobs:
         with:
           name: model-results-firah
           path: MLProject/artifacts/
-
-  docker:
-    name: "🐳 Build & Push Docker Image"
-    runs-on: ubuntu-latest
-    needs: train
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - name: "🔐 Login to Docker Hub"
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: "🏗️ Build & Push Docker"
-        run: |
-          # Membangun image docker sederhana
-          docker build -t ${{ env.DOCKER_IMAGE_NAME }}:latest ./MLProject
-          docker push ${{ env.DOCKER_IMAGE_NAME }}:latest
