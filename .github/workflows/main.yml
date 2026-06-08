@@ -27,15 +27,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install mlflow==${{ env.MLFLOW_VERSION }} dagshub pandas scikit-learn matplotlib seaborn
 
-      - name: Run MLflow Project
+      - name: "🧠 Run MLflow Project"
         env:
           DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
-          MLFLOW_TRACKING_USERNAME: "firahmaulida"
-          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          mlflow run MLProject \
-            --env-manager local \
-            --experiment-name "Telco_Churn_CI_FirahMaulida"
+          # Kita gunakan perintah MLflow Project murni
+          mlflow run MLProject --env-manager local --experiment-name "Telco_Churn_CI_FirahMaulida"
 
       - name: "📤 Upload Artifacts"
         if: always()
