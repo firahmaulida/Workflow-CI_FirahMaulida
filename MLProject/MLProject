@@ -1,7 +1,5 @@
 name: Telco_Churn_CI_FirahMaulida
-
 conda_env: conda.yaml
-
 entry_points:
   main:
     parameters:
