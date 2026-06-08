@@ -7,7 +7,7 @@ from datetime import datetime
 
 import dagshub
 import matplotlib
-matplotlib.use("Agg")   # Wajib untuk CI agar tidak muncul pop-up grafik
+matplotlib.use("Agg")   # Wajib untuk server/CI
 import matplotlib.pyplot as plt
 import mlflow
 import mlflow.sklearn
@@ -46,7 +46,6 @@ def parse_args():
     return parser.parse_args()
 
 def run(args):
-    # 1. Menyiapkan Parameter
     params = {
         "n_estimators": args.n_estimators,
         "max_depth": args.max_depth,
@@ -55,27 +54,24 @@ def run(args):
         "random_state": args.random_state,
     }
 
-    # 2. PERBAIKAN UNTUK OTOMASI CI (Mendeteksi Token)
-    dagshub_token = os.getenv("DAGSHUB_TOKEN")
-    if dagshub_token:
+    # --- PERBAIKAN UNTUK OTOMASI CI (Agar tidak minta login browser) ---
+    token = os.getenv("DAGSHUB_TOKEN")
+    if token:
         os.environ["MLFLOW_TRACKING_USERNAME"] = "firahmaulida"
-        os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
-        logger.info("✅ Menggunakan DAGSHUB_TOKEN dari GitHub Secrets.")
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = token
+        # Memberitahu DagsHub untuk menggunakan token secara langsung
+        os.environ["DAGSHUB_USER_TOKEN"] = token
+        logger.info("✅ Login otomatis menggunakan DAGSHUB_TOKEN.")
     
-    # Inisialisasi DagsHub
     dagshub.init(repo_owner="firahmaulida", repo_name="Eksperimen_SML_FirahMaulida", mlflow=True)
     mlflow.set_experiment(EXPERIMENT_NAME)
 
-    # 3. Load & Split Data
-    if not os.path.exists(DATA_PATH):
-        raise FileNotFoundError(f"File data tidak ada di: {DATA_PATH}")
-    
+    # Load Data
     df = pd.read_csv(DATA_PATH)
     X = df.drop(columns=[TARGET_COLUMN])
     y = df[TARGET_COLUMN]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test_size, random_state=args.random_state, stratify=y)
 
-    # 4. Training & Logging
     with mlflow.start_run():
         model = RandomForestClassifier(
             n_estimators=args.n_estimators,
@@ -88,11 +84,10 @@ def run(args):
         y_pred = model.predict(X_test)
         acc = accuracy_score(y_test, y_pred)
         
-        # Log Manual (Bintang 5)
         mlflow.log_params(params)
         mlflow.log_metric("accuracy", acc)
 
-        # Buat Artefak
+        # Artefak
         os.makedirs(ARTIFACT_DIR, exist_ok=True)
         cm = confusion_matrix(y_test, y_pred)
         disp = ConfusionMatrixDisplay(confusion_matrix=cm)
@@ -100,9 +95,7 @@ def run(args):
         plt.savefig(f"{ARTIFACT_DIR}/confusion_matrix.png")
         mlflow.log_artifact(f"{ARTIFACT_DIR}/confusion_matrix.png")
         
-        # Simpan Model
         mlflow.sklearn.log_model(model, "model")
-        
         logger.info(f"🚀 Training Selesai! Accuracy: {acc}")
 
 if __name__ == "__main__":
