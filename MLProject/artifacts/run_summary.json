@@ -3,8 +3,8 @@
         "author": "FirahMaulida",
         "course": "Membangun Sistem Machine Learning - Dicoding",
         "algorithm": "RandomForestClassifier",
-        "timestamp": "2026-06-04T19:24:49.491490",
-        "mlflow_run_id": "4abf3a2f562244b98a719fb1165225e3",
+        "timestamp": "2026-06-08T23:35:16.978164",
+        "mlflow_run_id": "6e72e8ace3704b53a42dfbb7c6f9a1b4",
         "dagshub_url": "https://dagshub.com/firahmaulida/Eksperimen_SML_FirahMaulida"
     },
     "hyperparameters": {
