@@ -1,25 +1,44 @@
-name: Workflow CI FirahMaulida Bintang 5 Final
+name: Workflow CI FirahMaulida Final Bintang 5
 
 on:
   push:
     branches: [ main ]
 
+env:
+  PYTHON_VERSION: "3.12.7"
+  DOCKER_IMAGE_NAME: "firahmaulida/telco-churn-mlflow"
+  MLFLOW_VERSION: "2.19.0"
+
 jobs:
   train:
+    name: "🚀 MLflow Project Training"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+
+      - name: "🐍 Setup Python"
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.12.7'
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install Dependencies
+      - name: "⚙️ Install Dependencies"
         run: |
-          pip install mlflow==2.19.0 dagshub pandas scikit-learn matplotlib
+          python -m pip install --upgrade pip
+          pip install mlflow==${{ env.MLFLOW_VERSION }} dagshub pandas scikit-learn matplotlib seaborn
 
-      - name: Run MLflow Project
+      - name: "🧠 Run MLflow Project"
         env:
-          # INI SANGAT PENTING
+          # INI KUNCINYA: Mengirimkan token ke kodingan Python
           DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          mlflow run MLProject --env-manager local --experiment-name "Telco_Churn_CI_FirahMaulida"
+          mlflow run MLProject \
+            --env-manager local \
+            --experiment-name "Telco_Churn_CI_FirahMaulida"
+
+      - name: "📤 Upload Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-results-firah
+          path: MLProject/artifacts/
